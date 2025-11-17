@@ -89,10 +89,11 @@ function App() {
   };
 
   const getAttentionColor = (value) => {
-    // Custom gradient: purple -> blue -> teal -> green -> yellow -> orange
+    // Custom gradient: purple -> blue -> teal -> green -> yellow -> orange -> pink -> dark red
     const colors = [
       "#54478c", "#2c699a", "#048ba8", "#0db39e", "#16db93",
-      "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c"
+      "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c",
+      "#f49cbb", "#dd2d4a"
     ];
 
     // Map value (0-1) to color index
@@ -112,7 +113,8 @@ function App() {
     // Same color gradient but with fixed low opacity for readability
     const colors = [
       "#54478c", "#2c699a", "#048ba8", "#0db39e", "#16db93",
-      "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c"
+      "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c",
+      "#f49cbb", "#dd2d4a"
     ];
 
     // Get unique tokens and find index of this token in the unique list
@@ -163,7 +165,7 @@ function App() {
         if (existingIndex >= 0) {
           // Remove if already selected
           setSelectedCombos(selectedCombos.filter((_, i) => i !== existingIndex));
-        } else if (selectedCombos.length < 8 && attention) {
+        } else if (selectedCombos.length < 12 && attention) {
           // Add new pair
           try {
             const response = await axios.post(`${API_URL}/analyze`, {
@@ -186,8 +188,26 @@ function App() {
         setPendingLayer(layer);
       }
     } else {
-      // Normal mode: just update selection
+      // Normal mode: update selection and fetch new attention data
       setSelectedLayer(layer);
+      // Fetch attention data for the new layer
+      if (attention) {
+        setLoading(true);
+        axios.post(`${API_URL}/analyze`, {
+          text,
+          layer
+        }, { timeout: 30000 })
+          .then(response => {
+            setAttention(response.data);
+            setBackendStatus('connected');
+          })
+          .catch(error => {
+            console.error('Error fetching attention:', error);
+          })
+          .finally(() => {
+            setLoading(false);
+          });
+      }
     }
   };
 
@@ -203,7 +223,7 @@ function App() {
         if (existingIndex >= 0) {
           // Remove if already selected
           setSelectedCombos(selectedCombos.filter((_, i) => i !== existingIndex));
-        } else if (selectedCombos.length < 8 && attention) {
+        } else if (selectedCombos.length < 12 && attention) {
           // Add new pair
           try {
             const response = await axios.post(`${API_URL}/analyze`, {
@@ -241,6 +261,79 @@ function App() {
     setCompareMode(!compareMode);
   };
 
+  const handleLayerDoubleClick = async (layer) => {
+    // Only works in compare mode with no existing selections
+    if (!compareMode || selectedCombos.length > 0 || !attention) return;
+
+    // Select ALL heads for this layer
+    const headsToSelect = attention.num_heads;
+    const newCombos = [];
+
+    try {
+      // Fetch attention data for this layer
+      const response = await axios.post(`${API_URL}/analyze`, {
+        text,
+        layer
+      }, { timeout: 30000 });
+
+      // Create combos for all heads
+      for (let head = 0; head < headsToSelect; head++) {
+        newCombos.push({
+          layer,
+          head,
+          attention: response.data.attention[head]
+        });
+      }
+
+      setSelectedCombos(newCombos);
+      // Clear any pending selections
+      setPendingLayer(null);
+      setPendingHead(null);
+    } catch (error) {
+      console.error('Error fetching attention for batch selection:', error);
+    }
+  };
+
+  const handleHeadDoubleClick = async (head) => {
+    // Only works in compare mode with no existing selections
+    if (!compareMode || selectedCombos.length > 0 || !attention) return;
+
+    // Select ALL layers for this head
+    const layersToSelect = 12;
+    const newCombos = [];
+
+    try {
+      // Fetch attention data for all 12 layers
+      const layerPromises = [];
+      for (let layer = 0; layer < layersToSelect; layer++) {
+        layerPromises.push(
+          axios.post(`${API_URL}/analyze`, {
+            text,
+            layer
+          }, { timeout: 30000 })
+        );
+      }
+
+      const responses = await Promise.all(layerPromises);
+
+      // Create combos from responses
+      for (let i = 0; i < layersToSelect; i++) {
+        newCombos.push({
+          layer: i,
+          head,
+          attention: responses[i].data.attention[head]
+        });
+      }
+
+      setSelectedCombos(newCombos);
+      // Clear any pending selections
+      setPendingLayer(null);
+      setPendingHead(null);
+    } catch (error) {
+      console.error('Error fetching attention for batch selection:', error);
+    }
+  };
+
   const removeCombo = (index) => {
     setSelectedCombos(selectedCombos.filter((_, i) => i !== index));
   };
@@ -256,7 +349,8 @@ function App() {
       const index = selectedCombos.findIndex(c => c.layer === combos[0].layer && c.head === combos[0].head);
       const colors = [
         "#54478c", "#2c699a", "#048ba8", "#0db39e", "#16db93",
-        "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c"
+        "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c",
+        "#f49cbb", "#dd2d4a"
       ];
       const colorIndex = index % colors.length;
       const hex = colors[colorIndex];
@@ -269,7 +363,8 @@ function App() {
     // Multiple combos - create gradient
     const colors = [
       "#54478c", "#2c699a", "#048ba8", "#0db39e", "#16db93",
-      "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c"
+      "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c",
+      "#f49cbb", "#dd2d4a"
     ];
 
     const gradientColors = combos.map(combo => {
@@ -286,7 +381,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-[#040404] text-white">
       {/* Header */}
       <div className="border-b border-[#2a2a2a]">
         <div className="max-w-[1800px] mx-auto px-8 py-6">
@@ -435,7 +530,7 @@ function App() {
                 {/* Selection Count */}
                 {compareMode && selectedCombos.length > 0 && (
                   <div className="text-xs text-gray-400 text-center">
-                    {selectedCombos.length} / 8 selected
+                    {selectedCombos.length} / 12 selected
                   </div>
                 )}
 
@@ -468,6 +563,7 @@ function App() {
                           <div key={i} className="flex gap-1">
                             <button
                               onClick={() => handleLayerClick(i)}
+                              onDoubleClick={() => handleLayerDoubleClick(i)}
                               className={`flex-1 text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                                 isCurrentlySelected
                                   ? 'bg-[#252525] text-white'
@@ -515,6 +611,7 @@ function App() {
                           <div key={i} className="flex gap-1">
                             <button
                               onClick={() => handleHeadClick(i)}
+                              onDoubleClick={() => handleHeadDoubleClick(i)}
                               className={`flex-1 text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                                 isCurrentlySelected
                                   ? 'bg-white text-black'
@@ -738,9 +835,7 @@ function App() {
               className="mt-8"
             >
               <h3 className="text-base font-medium mb-4">Comparison View</h3>
-              <div className="grid gap-4" style={{
-                gridTemplateColumns: `repeat(${Math.min(selectedCombos.length, 4)}, 1fr)`
-              }}>
+              <div className="grid grid-cols-4 gap-4">
                 {selectedCombos.map((combo, idx) => (
                   <div key={idx} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-4">
                     <h4 className="text-xs font-medium text-gray-400 mb-3 text-center">
