@@ -415,7 +415,7 @@ function App() {
         <div className="max-w-[1800px] mx-auto px-8 py-6">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-medium tracking-tight">
-              Transformer Attention Visualizer
+              Transformer Attention Visualiser
             </h1>
 
             {/* Backend Status */}
