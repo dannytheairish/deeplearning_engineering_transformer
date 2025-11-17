@@ -23,8 +23,19 @@ function App() {
     'The student failed the exam because he did not study hard enough',
     'The company closed early today because the storm was getting worse',
     'The professor who teaches machine learning also researches transformers',
-    'The deadline was extended because students complained loudly about it'
+    'The deadline was extended because students complained loudly about it',
+    'The manager postponed the meeting because several employees arrived late',
+    'The scientist who discovered the molecule later published a detailed study about it',
+    'The athlete improved quickly because the coach trained her every day',
+    'The restaurant was crowded tonight even though the weather was terrible',
+    'The engineer fixed the device after she identified the faulty component',
+    'The software crashed repeatedly because the server could not handle the load',
+    'The patient who arrived earlier was treated before the others',
+    'The team celebrated their victory although they were exhausted from the match',
+    'The author revised the chapter after readers pointed out several mistakes',
+    'The child started crying when the toy that he loved suddenly broke'
   ];
+  
 
   useEffect(() => {
     checkBackendHealth();
