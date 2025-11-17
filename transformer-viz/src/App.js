@@ -13,6 +13,17 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [backendStatus, setBackendStatus] = useState('checking');
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedCombos, setSelectedCombos] = useState([]); // [{layer, head, attention}, ...]
+  const [pendingLayer, setPendingLayer] = useState(null); // For compare mode pair selection
+  const [pendingHead, setPendingHead] = useState(null); // For compare mode pair selection
+
+  const sampleSentences = [
+    'The student failed the exam because he did not study hard enough',
+    'The company closed early today because the storm was getting worse',
+    'The professor who teaches machine learning also researches transformers',
+    'The deadline was extended because students complained loudly about it'
+  ];
 
   useEffect(() => {
     checkBackendHealth();
@@ -30,6 +41,11 @@ function App() {
     }
   };
 
+  const handleRandomSentence = () => {
+    const randomIndex = Math.floor(Math.random() * sampleSentences.length);
+    setText(sampleSentences[randomIndex]);
+  };
+
   const analyzeText = async () => {
     setLoading(true);
     setError(null);
@@ -40,6 +56,24 @@ function App() {
       }, { timeout: 30000 });
       setAttention(response.data);
       setBackendStatus('connected');
+
+      // Update selected combos with new attention data
+      if (selectedCombos.length > 0) {
+        const updatedCombos = await Promise.all(
+          selectedCombos.map(async (combo) => {
+            const res = await axios.post(`${API_URL}/analyze`, {
+              text,
+              layer: combo.layer
+            }, { timeout: 30000 });
+            return {
+              layer: combo.layer,
+              head: combo.head,
+              attention: res.data.attention[combo.head]
+            };
+          })
+        );
+        setSelectedCombos(updatedCombos);
+      }
     } catch (error) {
       console.error('Error:', error);
       if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
@@ -117,6 +151,120 @@ function App() {
     }
   };
 
+  const handleLayerClick = async (layer) => {
+    if (compareMode) {
+      // Check if this completes a pair
+      if (pendingHead !== null) {
+        // We have a head waiting, complete the pair
+        const existingIndex = selectedCombos.findIndex(
+          combo => combo.layer === layer && combo.head === pendingHead
+        );
+
+        if (existingIndex >= 0) {
+          // Remove if already selected
+          setSelectedCombos(selectedCombos.filter((_, i) => i !== existingIndex));
+        } else if (selectedCombos.length < 8 && attention) {
+          // Add new pair
+          try {
+            const response = await axios.post(`${API_URL}/analyze`, {
+              text,
+              layer
+            }, { timeout: 30000 });
+            setSelectedCombos([...selectedCombos, {
+              layer,
+              head: pendingHead,
+              attention: response.data.attention[pendingHead]
+            }]);
+          } catch (error) {
+            console.error('Error fetching attention for comparison:', error);
+          }
+        }
+        setPendingHead(null);
+        setPendingLayer(null);
+      } else {
+        // Set as pending layer
+        setPendingLayer(layer);
+      }
+    } else {
+      // Normal mode: just update selection
+      setSelectedLayer(layer);
+    }
+  };
+
+  const handleHeadClick = async (head) => {
+    if (compareMode) {
+      // Check if this completes a pair
+      if (pendingLayer !== null) {
+        // We have a layer waiting, complete the pair
+        const existingIndex = selectedCombos.findIndex(
+          combo => combo.layer === pendingLayer && combo.head === head
+        );
+
+        if (existingIndex >= 0) {
+          // Remove if already selected
+          setSelectedCombos(selectedCombos.filter((_, i) => i !== existingIndex));
+        } else if (selectedCombos.length < 8 && attention) {
+          // Add new pair
+          try {
+            const response = await axios.post(`${API_URL}/analyze`, {
+              text,
+              layer: pendingLayer
+            }, { timeout: 30000 });
+            setSelectedCombos([...selectedCombos, {
+              layer: pendingLayer,
+              head,
+              attention: response.data.attention[head]
+            }]);
+          } catch (error) {
+            console.error('Error fetching attention for comparison:', error);
+          }
+        }
+        setPendingHead(null);
+        setPendingLayer(null);
+      } else {
+        // Set as pending head
+        setPendingHead(head);
+      }
+    } else {
+      // Normal mode: just update selection
+      setSelectedHead(head);
+    }
+  };
+
+  const toggleCompareMode = () => {
+    if (compareMode) {
+      // Exiting compare mode - clear pending selections but keep current L/H
+      setPendingLayer(null);
+      setPendingHead(null);
+      // Keep selectedLayer and selectedHead as is (don't reset to 0,0)
+    }
+    setCompareMode(!compareMode);
+  };
+
+  const removeCombo = (index) => {
+    setSelectedCombos(selectedCombos.filter((_, i) => i !== index));
+  };
+
+  const isComboSelected = (layer, head) => {
+    return selectedCombos.some(combo => combo.layer === layer && combo.head === head);
+  };
+
+  const getComboColor = (layer, head) => {
+    const index = selectedCombos.findIndex(combo => combo.layer === layer && combo.head === head);
+    if (index === -1) return null;
+
+    const colors = [
+      "#54478c", "#2c699a", "#048ba8", "#0db39e", "#16db93",
+      "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c"
+    ];
+    const colorIndex = index % colors.length;
+    const hex = colors[colorIndex];
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, 0.25)`;
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       {/* Header */}
@@ -149,7 +297,7 @@ function App() {
         {/* Input Section */}
         <div className="mb-8">
           <h3 className="text-sm font-medium text-gray-400 mb-3">Input</h3>
-          <div className="flex gap-3 mb-4">
+          <div className="flex gap-3">
             <input
               type="text"
               value={text}
@@ -158,6 +306,15 @@ function App() {
               className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-4 py-3 text-base focus:outline-none focus:border-[#3a3a3a] transition-colors"
               placeholder="Enter any sentence to analyze..."
             />
+            <button
+              onClick={handleRandomSentence}
+              className="px-6 py-3 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg hover:bg-[#252525] transition-colors"
+              title="Random sentence"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </button>
             <button
               onClick={analyzeText}
               disabled={loading}
@@ -175,7 +332,7 @@ function App() {
 
           {/* Tokenized Text Display */}
           {attention && (
-            <div>
+            <div className="mt-4">
               <h3 className="text-sm font-medium text-gray-400 mb-3">
                 Tokenized Input - {text.length} characters, {attention.tokens.length} tokens
               </h3>
@@ -232,46 +389,125 @@ function App() {
               className="grid grid-cols-[280px_1fr_320px] gap-6"
             >
               {/* Left Sidebar - Layer & Head Selector (2 columns) */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Layer Selector */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-400 mb-3">Layer</h3>
-                  <div className="space-y-2">
-                    {[...Array(12)].map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setSelectedLayer(i)}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                          selectedLayer === i
-                            ? 'bg-[#252525] text-white'
-                            : 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300'
-                        }`}
-                      >
-                        Layer {i}
-                      </button>
-                    ))}
+              <div className="space-y-4">
+                {/* Compare Mode Toggle */}
+                <button
+                  onClick={toggleCompareMode}
+                  className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    compareMode
+                      ? 'bg-white text-black'
+                      : 'bg-[#1a1a1a] border border-[#2a2a2a] text-gray-400 hover:bg-[#252525]'
+                  }`}
+                >
+                  {compareMode ? 'Exit Compare Mode' : 'Compare Mode'}
+                </button>
+
+                {/* Delete Selection Button */}
+                {compareMode && selectedCombos.length > 0 && (
+                  <button
+                    onClick={() => setSelectedCombos([])}
+                    className="w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-red-950/30 border border-red-900/50 text-red-400 hover:bg-red-950/50"
+                  >
+                    Delete Selection
+                  </button>
+                )}
+
+                {/* Selection Count */}
+                {compareMode && selectedCombos.length > 0 && (
+                  <div className="text-xs text-gray-400 text-center">
+                    {selectedCombos.length} / 8 selected
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Layer Selector */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-400 mb-3">Layer</h3>
+                    <div className="space-y-2">
+                      {[...Array(12)].map((_, i) => {
+                        // Check if ANY combo uses this layer
+                        const combosWithThisLayer = selectedCombos.filter(c => c.layer === i);
+                        const hasCombo = combosWithThisLayer.length > 0;
+                        const comboColor = hasCombo ? getComboColor(i, combosWithThisLayer[0].head) : null;
+                        const isPending = compareMode && pendingLayer === i;
+                        return (
+                          <div key={i} className="flex gap-1">
+                            <button
+                              onClick={() => handleLayerClick(i)}
+                              className={`flex-1 text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                                selectedLayer === i && !compareMode
+                                  ? 'bg-[#252525] text-white'
+                                  : isPending
+                                  ? 'bg-[#2a2a2a] text-white border border-[#3a3a3a]'
+                                  : !comboColor
+                                  ? 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300'
+                                  : ''
+                              }`}
+                              style={comboColor ? { backgroundColor: comboColor, color: '#fff' } : {}}
+                            >
+                              Layer {i}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Head Selector */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-400 mb-3">Head</h3>
+                    <div className="space-y-2">
+                      {[...Array(attention.num_heads)].map((_, i) => {
+                        // Check if ANY combo uses this head
+                        const combosWithThisHead = selectedCombos.filter(c => c.head === i);
+                        const hasCombo = combosWithThisHead.length > 0;
+                        const comboColor = hasCombo ? getComboColor(combosWithThisHead[0].layer, i) : null;
+                        const isPending = compareMode && pendingHead === i;
+                        return (
+                          <div key={i} className="flex gap-1">
+                            <button
+                              onClick={() => handleHeadClick(i)}
+                              className={`flex-1 text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                                selectedHead === i && !compareMode
+                                  ? 'bg-white text-black'
+                                  : isPending
+                                  ? 'bg-[#2a2a2a] text-white border border-[#3a3a3a]'
+                                  : !comboColor
+                                  ? 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300'
+                                  : ''
+                              }`}
+                              style={comboColor ? { backgroundColor: comboColor, color: '#fff' } : {}}
+                            >
+                              Head {i}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                {/* Head Selector */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-400 mb-3">Head</h3>
-                  <div className="space-y-2">
-                    {[...Array(attention.num_heads)].map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setSelectedHead(i)}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                          selectedHead === i
-                            ? 'bg-white text-black'
-                            : 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300'
-                        }`}
-                      >
-                        Head {i}
-                      </button>
-                    ))}
+                {/* Selected Combos List */}
+                {selectedCombos.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="text-sm font-medium text-gray-400 mb-3">Selected Combinations</h3>
+                    <div className="space-y-2">
+                      {selectedCombos.map((combo, i) => (
+                        <div key={i} className="flex items-center justify-between bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-2">
+                          <span className="text-sm">L{combo.layer} H{combo.head}</span>
+                          <button
+                            onClick={() => removeCombo(i)}
+                            className="text-gray-500 hover:text-red-400 transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Center - Attention Matrix */}
@@ -380,7 +616,7 @@ function App() {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-gray-600 mt-0.5 flex-shrink-0">•</span>
-                      <span>Some heads focus on <span className="text-gray-200">syntax</span> (subject → verb relationships)</span>
+                      <span>Some heads focus on <span className="text-gray-200">syntax</span> (subject to verb relationships)</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-gray-600 mt-0.5 flex-shrink-0">•</span>
@@ -439,6 +675,48 @@ function App() {
                     </div>
                   )}
                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Comparison Grid */}
+        <AnimatePresence>
+          {selectedCombos.length > 0 && attention && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="mt-8"
+            >
+              <h3 className="text-base font-medium mb-4">Comparison View</h3>
+              <div className="grid gap-4" style={{
+                gridTemplateColumns: `repeat(${Math.min(selectedCombos.length, 4)}, 1fr)`
+              }}>
+                {selectedCombos.map((combo, idx) => (
+                  <div key={idx} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-4">
+                    <h4 className="text-xs font-medium text-gray-400 mb-3 text-center">
+                      Layer {combo.layer} Head {combo.head}
+                    </h4>
+                    <div className="flex flex-col gap-1 items-center justify-center">
+                      {combo.attention.map((row, i) => (
+                        <div key={i} className="flex gap-1">
+                          {row.map((attnValue, j) => (
+                            <div
+                              key={j}
+                              className="rounded"
+                              style={{
+                                width: `${Math.max(8, 200 / attention.tokens.length)}px`,
+                                height: `${Math.max(8, 200 / attention.tokens.length)}px`,
+                                backgroundColor: getAttentionColor(attnValue),
+                              }}
+                            />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </motion.div>
           )}
