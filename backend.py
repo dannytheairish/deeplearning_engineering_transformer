@@ -16,23 +16,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-print("🚀 Loading BERT model...")
+print("Loading BERT model...")
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 print(f"Using device: {device}")
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 model = BertModel.from_pretrained('bert-base-uncased', output_attentions=True).to(device)
 model.eval()
-print("✅ Model loaded successfully!")
+print("Model loaded successfully!")
 
 # Request model
 class AnalyzeRequest(BaseModel):
     text: str
-    layer: int = 6
+    layer: int 
 
 @app.post('/analyze')
 async def analyze(request: AnalyzeRequest):
-    print(f"📥 Received analyze request")
+    print(f"Received analyze request")
     print(f"Text: {request.text}")
     print(f"Layer: {request.layer}")
     
@@ -45,7 +45,7 @@ async def analyze(request: AnalyzeRequest):
     tokens = tokenizer.convert_ids_to_tokens(inputs['input_ids'][0])
     attention = outputs.attentions[request.layer][0].cpu().numpy()
     
-    print(f"✅ Returning {len(tokens)} tokens")
+    print(f"Returning {len(tokens)} tokens")
     
     return {
         'tokens': tokens,
@@ -58,5 +58,5 @@ async def health():
     return {'status': 'ok'}
 
 if __name__ == '__main__':
-    print("🌟 Starting FastAPI server on http://127.0.0.1:8000")
+    print("Starting FastAPI server on http://127.0.0.1:8000")
     uvicorn.run(app, host="127.0.0.1", port=8000)

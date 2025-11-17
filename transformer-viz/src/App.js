@@ -8,7 +8,7 @@ function App() {
   const [text, setText] = useState("The student failed because he did not study");
   const [attention, setAttention] = useState(null);
   const [selectedHead, setSelectedHead] = useState(0);
-  const [selectedLayer, setSelectedLayer] = useState(6);
+  const [selectedLayer, setSelectedLayer] = useState(0);
   const [hoveredCell, setHoveredCell] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -20,12 +20,6 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (attention && text) {
-      analyzeText();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLayer]);
 
   const checkBackendHealth = async () => {
     try {
@@ -80,14 +74,19 @@ function App() {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
   };
 
-  const getTokenColor = (index, totalTokens) => {
+  const getTokenColor = (token, tokens) => {
     // Same color gradient but with fixed low opacity for readability
     const colors = [
       "#54478c", "#2c699a", "#048ba8", "#0db39e", "#16db93",
       "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c"
     ];
 
-    const colorIndex = Math.min(Math.floor((index / totalTokens) * colors.length), colors.length - 1);
+    // Get unique tokens and find index of this token in the unique list
+    const uniqueTokens = [...new Set(tokens)];
+    const uniqueIndex = uniqueTokens.indexOf(token);
+
+    // Map to color based on position in unique tokens
+    const colorIndex = Math.min(Math.floor((uniqueIndex / uniqueTokens.length) * colors.length), colors.length - 1);
     const hex = colors[colorIndex];
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
@@ -185,7 +184,7 @@ function App() {
                   <span
                     key={i}
                     className="px-2 py-1 rounded text-sm"
-                    style={{ backgroundColor: getTokenColor(i, attention.tokens.length) }}
+                    style={{ backgroundColor: getTokenColor(token, attention.tokens) }}
                   >
                     {token.replace('##', '')}
                   </span>
