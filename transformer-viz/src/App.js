@@ -249,20 +249,40 @@ function App() {
     return selectedCombos.some(combo => combo.layer === layer && combo.head === head);
   };
 
-  const getComboColor = (layer, head) => {
-    const index = selectedCombos.findIndex(combo => combo.layer === layer && combo.head === head);
-    if (index === -1) return null;
+  const getMultiComboGradient = (combos) => {
+    if (combos.length === 0) return null;
+    if (combos.length === 1) {
+      // Single combo - return solid color
+      const index = selectedCombos.findIndex(c => c.layer === combos[0].layer && c.head === combos[0].head);
+      const colors = [
+        "#54478c", "#2c699a", "#048ba8", "#0db39e", "#16db93",
+        "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c"
+      ];
+      const colorIndex = index % colors.length;
+      const hex = colors[colorIndex];
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, 0.25)`;
+    }
 
+    // Multiple combos - create gradient
     const colors = [
       "#54478c", "#2c699a", "#048ba8", "#0db39e", "#16db93",
       "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c"
     ];
-    const colorIndex = index % colors.length;
-    const hex = colors[colorIndex];
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, 0.25)`;
+
+    const gradientColors = combos.map(combo => {
+      const index = selectedCombos.findIndex(c => c.layer === combo.layer && c.head === combo.head);
+      const colorIndex = index % colors.length;
+      const hex = colors[colorIndex];
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, 0.25)`;
+    });
+
+    return `linear-gradient(to right, ${gradientColors.join(', ')})`;
   };
 
   return (
@@ -428,22 +448,36 @@ function App() {
                         // Check if ANY combo uses this layer
                         const combosWithThisLayer = selectedCombos.filter(c => c.layer === i);
                         const hasCombo = combosWithThisLayer.length > 0;
-                        const comboColor = hasCombo ? getComboColor(i, combosWithThisLayer[0].head) : null;
+                        const comboGradient = hasCombo ? getMultiComboGradient(combosWithThisLayer) : null;
                         const isPending = compareMode && pendingLayer === i;
+                        const isCurrentlySelected = selectedLayer === i && !compareMode;
+
+                        // Build style object
+                        const buttonStyle = {};
+                        if (comboGradient && !isCurrentlySelected && !isPending) {
+                          // Apply gradient only when NOT currently selected for navigation
+                          if (combosWithThisLayer.length === 1) {
+                            buttonStyle.backgroundColor = comboGradient;
+                          } else {
+                            buttonStyle.backgroundImage = comboGradient;
+                          }
+                          buttonStyle.color = '#fff';
+                        }
+
                         return (
                           <div key={i} className="flex gap-1">
                             <button
                               onClick={() => handleLayerClick(i)}
                               className={`flex-1 text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                                selectedLayer === i && !compareMode
+                                isCurrentlySelected
                                   ? 'bg-[#252525] text-white'
                                   : isPending
                                   ? 'bg-[#2a2a2a] text-white border border-[#3a3a3a]'
-                                  : !comboColor
+                                  : !comboGradient
                                   ? 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300'
                                   : ''
                               }`}
-                              style={comboColor ? { backgroundColor: comboColor, color: '#fff' } : {}}
+                              style={buttonStyle}
                             >
                               Layer {i}
                             </button>
@@ -461,22 +495,36 @@ function App() {
                         // Check if ANY combo uses this head
                         const combosWithThisHead = selectedCombos.filter(c => c.head === i);
                         const hasCombo = combosWithThisHead.length > 0;
-                        const comboColor = hasCombo ? getComboColor(combosWithThisHead[0].layer, i) : null;
+                        const comboGradient = hasCombo ? getMultiComboGradient(combosWithThisHead) : null;
                         const isPending = compareMode && pendingHead === i;
+                        const isCurrentlySelected = selectedHead === i && !compareMode;
+
+                        // Build style object
+                        const buttonStyle = {};
+                        if (comboGradient && !isCurrentlySelected && !isPending) {
+                          // Apply gradient only when NOT currently selected for navigation
+                          if (combosWithThisHead.length === 1) {
+                            buttonStyle.backgroundColor = comboGradient;
+                          } else {
+                            buttonStyle.backgroundImage = comboGradient;
+                          }
+                          buttonStyle.color = '#fff';
+                        }
+
                         return (
                           <div key={i} className="flex gap-1">
                             <button
                               onClick={() => handleHeadClick(i)}
                               className={`flex-1 text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                                selectedHead === i && !compareMode
+                                isCurrentlySelected
                                   ? 'bg-white text-black'
                                   : isPending
                                   ? 'bg-[#2a2a2a] text-white border border-[#3a3a3a]'
-                                  : !comboColor
+                                  : !comboGradient
                                   ? 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300'
                                   : ''
                               }`}
-                              style={comboColor ? { backgroundColor: comboColor, color: '#fff' } : {}}
+                              style={buttonStyle}
                             >
                               Head {i}
                             </button>
