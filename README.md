@@ -154,3 +154,35 @@ This project was developed as part of a Deep Learning Engineering course. It bui
 ## Licence
 
 This project is available for educational and research purposes.
+
+
+
+## Screenshots
+
+### Single Head Attention View
+<p align="center">
+  <img src="screenshots/attention_details.png" width="750"/>
+  <br/>
+  <sub><em>Detailed attention heatmap for a specific layer and head. Hovering shows numerical attention scores.</em></sub>
+</p>
+
+### Comparison Mode – All Heads in a Layer
+<p align="center">
+  <img src="screenshots/comparison_view.png" width="750"/>
+  <br/>
+  <sub><em>Comparison mode showing all 12 heads of a layer side-by-side, enabling pattern recognition across heads.</em></sub>
+</p>
+
+### Multi-Head / Multi-Layer Selection Preview
+<p align="center">
+  <img src="screenshots/all_heads.png" width="750"/>
+  <br/>
+  <sub><em>Fast selection of multiple layer-head combinations, displayed simultaneously.</em></sub>
+</p>
+
+### Main Interface
+<p align="center">
+  <img src="screenshots/main_view.png" width="750"/>
+  <br/>
+  <sub><em>Primary interface: text input, tokenized view, sidebar navigation, and attention visualisation.</em></sub>
+</p>
