@@ -80,6 +80,22 @@ function App() {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
   };
 
+  const getTokenColor = (index, totalTokens) => {
+    // Same color gradient but with fixed low opacity for readability
+    const colors = [
+      "#54478c", "#2c699a", "#048ba8", "#0db39e", "#16db93",
+      "#83e377", "#b9e769", "#efea5a", "#f1c453", "#f29e4c"
+    ];
+
+    const colorIndex = Math.min(Math.floor((index / totalTokens) * colors.length), colors.length - 1);
+    const hex = colors[colorIndex];
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+
+    return `rgba(${r}, ${g}, ${b}, 0.25)`; // Fixed 25% opacity
+  };
+
   const navigatePrevious = () => {
     if (!attention) return;
 
@@ -133,7 +149,8 @@ function App() {
       <div className="max-w-[1800px] mx-auto px-8 py-8">
         {/* Input Section */}
         <div className="mb-8">
-          <div className="flex gap-3">
+          <h3 className="text-sm font-medium text-gray-400 mb-3">Input</h3>
+          <div className="flex gap-3 mb-4">
             <input
               type="text"
               value={text}
@@ -156,6 +173,26 @@ function App() {
               )}
             </button>
           </div>
+
+          {/* Tokenized Text Display */}
+          {attention && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-400 mb-3">
+                Tokenized Input - {text.length} characters, {attention.tokens.length} tokens
+              </h3>
+              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-4 py-3 flex flex-wrap gap-1 items-center min-h-[48px]">
+                {attention.tokens.map((token, i) => (
+                  <span
+                    key={i}
+                    className="px-2 py-1 rounded text-sm"
+                    style={{ backgroundColor: getTokenColor(i, attention.tokens.length) }}
+                  >
+                    {token.replace('##', '')}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Error Display */}
