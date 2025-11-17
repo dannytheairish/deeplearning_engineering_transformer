@@ -17,6 +17,7 @@ function App() {
   const [selectedCombos, setSelectedCombos] = useState([]); // [{layer, head, attention}, ...]
   const [pendingLayer, setPendingLayer] = useState(null); // For compare mode pair selection
   const [pendingHead, setPendingHead] = useState(null); // For compare mode pair selection
+  const [batchDoubleClickSource, setBatchDoubleClickSource] = useState(null); // Tracks double-click batch: {type: 'layer'|'head', value: number}
 
   const sampleSentences = [
     'The student failed the exam because he did not study hard enough',
@@ -256,14 +257,27 @@ function App() {
       // Exiting compare mode - clear pending selections but keep current L/H
       setPendingLayer(null);
       setPendingHead(null);
+      setBatchDoubleClickSource(null);
       // Keep selectedLayer and selectedHead as is (don't reset to 0,0)
     }
     setCompareMode(!compareMode);
   };
 
   const handleLayerDoubleClick = async (layer) => {
-    // Only works in compare mode with no existing selections
-    if (!compareMode || selectedCombos.length > 0 || !attention) return;
+    if (!compareMode || !attention) return;
+
+    // Check if we should clear the batch (double-clicking any layer in the batch)
+    if (selectedCombos.length > 0 && batchDoubleClickSource?.type === 'layer') {
+      // Clear the entire batch selection
+      setSelectedCombos([]);
+      setBatchDoubleClickSource(null);
+      setPendingLayer(null);
+      setPendingHead(null);
+      return;
+    }
+
+    // Only allow new batch selection if no existing selections
+    if (selectedCombos.length > 0) return;
 
     // Select ALL heads for this layer
     const headsToSelect = attention.num_heads;
@@ -286,6 +300,7 @@ function App() {
       }
 
       setSelectedCombos(newCombos);
+      setBatchDoubleClickSource({ type: 'layer', value: layer });
       // Clear any pending selections
       setPendingLayer(null);
       setPendingHead(null);
@@ -295,8 +310,20 @@ function App() {
   };
 
   const handleHeadDoubleClick = async (head) => {
-    // Only works in compare mode with no existing selections
-    if (!compareMode || selectedCombos.length > 0 || !attention) return;
+    if (!compareMode || !attention) return;
+
+    // Check if we should clear the batch (double-clicking any head in the batch)
+    if (selectedCombos.length > 0 && batchDoubleClickSource?.type === 'head') {
+      // Clear the entire batch selection
+      setSelectedCombos([]);
+      setBatchDoubleClickSource(null);
+      setPendingLayer(null);
+      setPendingHead(null);
+      return;
+    }
+
+    // Only allow new batch selection if no existing selections
+    if (selectedCombos.length > 0) return;
 
     // Select ALL layers for this head
     const layersToSelect = 12;
@@ -326,6 +353,7 @@ function App() {
       }
 
       setSelectedCombos(newCombos);
+      setBatchDoubleClickSource({ type: 'head', value: head });
       // Clear any pending selections
       setPendingLayer(null);
       setPendingHead(null);
@@ -501,7 +529,7 @@ function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="grid grid-cols-[280px_1fr_320px] gap-6"
+              className="grid grid-cols-[280px_minmax(800px,1fr)_320px] gap-6"
             >
               {/* Left Sidebar - Layer & Head Selector (2 columns) */}
               <div className="space-y-4">
@@ -520,7 +548,10 @@ function App() {
                 {/* Delete Selection Button */}
                 {compareMode && selectedCombos.length > 0 && (
                   <button
-                    onClick={() => setSelectedCombos([])}
+                    onClick={() => {
+                      setSelectedCombos([]);
+                      setBatchDoubleClickSource(null);
+                    }}
                     className="w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-red-950/30 border border-red-900/50 text-red-400 hover:bg-red-950/50"
                   >
                     Delete Selection
